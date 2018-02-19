@@ -1,0 +1,6 @@
+[package]
+name = "cocotte"
+version = "0.1.0"
+authors = ["Pierre BAILLET <pierre.baillet@datadoghq.com>"]
+
+[dependencies]
