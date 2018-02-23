@@ -12,6 +12,17 @@ cocotte $(pwd)
 
 # Fish integration
 
+## ssh tab color
+
+```shell
+function ssh
+    cocotte echo $argv
+    /usr/bin/ssh $argv
+end
+```
+
+## cwd tab color
+
 In your `fish_prompt` configuration file
 
 ```shell

@@ -10,7 +10,7 @@ use palette::FromColor;
 
 fn main() {
     // Prints each argument on a separate line
-    let black_list = vec![".", "Documents", "src", "datadog", "mine"];
+    let black_list = vec!["users", "pierrebaillet", ".", "Documents", "src", "datadog", "mine"];
 
     if env::args().len() > 1 {
         let path: String = env::args().last().unwrap();
@@ -133,9 +133,13 @@ fn main() {
 
 fn hsv(path: &str, black_list: &Vec<&str>) {
     let ascii_path = path.to_ascii_lowercase();
-    let components: Vec<&str> = ascii_path.split('/').filter(|it| it.len() > 0 && !black_list.contains(it)).collect();
+    let components: Vec<&str> = ascii_path
+        .split('/')
+        .filter(|it| it.len() > 0 && !black_list.contains(it))
+        .collect();
     let mut hue: f32 = 0.0;
     let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
+    //println!("{:?}", components);
 
     for (ix, comp) in components.into_iter().enumerate() {
         match ix  {
