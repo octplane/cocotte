@@ -1,0 +1,9 @@
+blacklist = [
+          "users",
+          "pierrebaillet",
+          ".",
+          "Documents",
+          "src",
+          "datadog",
+          "mine"
+]
