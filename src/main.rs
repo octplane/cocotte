@@ -9,28 +9,32 @@ use palette::{Hsl, RgbHue};
 use palette::rgb::Rgb;
 use palette::FromColor;
 
-fn main() {
-    // Prints each argument on a separate line
-    let black_list = vec![
-        "users",
-        "pierrebaillet",
-        ".",
-        "Documents",
-        "src",
-        "datadog",
-        "mine",
-    ];
-
-    if let Some(mut home) = env::home_dir() {
-        home.push(".cocotterc.toml");
+fn read_settings() -> Vec<String> {
+    if let Some(mut home_dir) = env::home_dir() {
+        home_dir.push(".cocotterc.toml");
         let mut settings = config::Config::default();
-        if let Ok(settings) = settings.merge(config::File::from(home)) {
-            println!(
-                "{:?}",
-                settings.get_array("blacklist")
-            );
-        }
+        match settings.merge(config::File::from(home_dir)) {
+            Ok(config) => {
+                match config.get_array("blacklist") {
+                    Ok(blacklist_config) => {
+                        blacklist_config
+                            .into_iter()
+                            .map(|v| v.into_str())
+                            .collect()
+                    },
+                    _ => Ok(vec![])
+                }
+            },
+            _ => Ok(vec![])
+        }.ok().unwrap_or(vec![])
+    } else {
+        vec![]
     }
+}
+
+fn main() {
+    let settings = read_settings();
+    let black_list = settings.iter().map(|it| it.as_str()).collect();
 
     if env::args().len() > 1 {
         let path: String = env::args().last().unwrap();
