@@ -1,6 +1,12 @@
+extern crate palette;
+
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use std::env;
+
+use palette::{Hsl, RgbHue};
+use palette::rgb::Rgb;
+use palette::FromColor;
 
 fn main() {
     // Prints each argument on a separate line
@@ -8,7 +14,7 @@ fn main() {
 
     if env::args().len() > 1 {
         let path: String = env::args().last().unwrap();
-        println!("path: {:?}", hsv(path.as_str(), &black_list));
+        hsv(path.as_str(), &black_list);
 
     } else {
         let sample = vec![
@@ -128,7 +134,7 @@ fn main() {
 fn hsv(path: &str, black_list: &Vec<&str>) {
     let ascii_path = path.to_ascii_lowercase();
     let components: Vec<&str> = ascii_path.split('/').filter(|it| it.len() > 0 && !black_list.contains(it)).collect();
-    let mut hue: i32 = 0;
+    let mut hue: f32 = 0.0;
     let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
 
     for (ix, comp) in components.into_iter().enumerate() {
@@ -138,16 +144,25 @@ fn hsv(path: &str, black_list: &Vec<&str>) {
             },
             _ => {
                 let sh = sub_hue_for(comp);
-                let delta = sh / (ix as i32);
+                let delta = sh / (ix as i32) as f32;
                 hue = hue + delta ;
             }
         }
     }
-    println!("<div style='background-color: hsl({}, {}%, 50%)'>{} {} {}</div>", hue, saturation, hue, saturation, path);
+    // Hue - 180 to 180
+    let col = Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5);
+    let rgbc: Rgb = Rgb::from_hsl(col);
+    let r = (rgbc.red * 255.0) as i32;
+    let g = (rgbc.green * 255.0) as i32;
+    let b = (rgbc.blue * 255.0) as i32;
 
+
+    print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
+    print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
+    print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
 }
 
-fn sub_hue_for(component: &str) -> i32 {
+fn sub_hue_for(component: &str) -> f32 {
     let min: i32 = 97;
     let max: i32 = 122;
     let mid: i32 = (max + min) as i32 / 2;
@@ -166,21 +181,22 @@ fn sub_hue_for(component: &str) -> i32 {
 
     let hv = hasher.finish() & 0xF;
     let delta: i32 =  (15 - hv) as i32;
-    match selector {
+    let out: f32 = match selector {
         Some(c) => c - mid + delta,
         _ => 0
-    }
+    } as f32;
+    return out;
 }
      
-fn base_hue_for(component: &str) -> i32 {
+fn base_hue_for(component: &str) -> f32 {
     let asa = component.as_bytes();
 
     let min: i32 = 97;
     let max: i32 = 122;
-    let mid: i32 = (max + min) / 2;
     let range = max - min;
 
     let mut count = 0;
+    // 0-100
     let mut hue: i32 = 0;
 
     for cchar in asa[0..].into_iter().map(|c| *c as i32).filter(|char| *char >= min && *char <= max ) {
@@ -191,7 +207,7 @@ fn base_hue_for(component: &str) -> i32 {
         panic!("Ouch, no count for \"{}\"", component);
     }
 
-    hue = 255 * hue / (count * range);
-
-    return hue;
+    let mut out:f32 = hue as f32;
+    out = 360.0 * out / (count * range) as f32;
+    return out;
 }

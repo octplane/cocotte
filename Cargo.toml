@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["Pierre BAILLET <pierre.baillet@datadoghq.com>"]
 
 [dependencies]
+
+palette = "0.3.0"
