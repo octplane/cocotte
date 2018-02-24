@@ -1,46 +1,208 @@
-extern crate palette;
+extern crate clap;
 extern crate config;
+extern crate palette;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use std::env;
+use std::path::PathBuf;
+
+use clap::{App, Arg};
 
 use palette::{Hsl, RgbHue};
 use palette::rgb::Rgb;
 use palette::FromColor;
 
-fn read_settings() -> Vec<String> {
-    if let Some(mut home_dir) = env::home_dir() {
-        home_dir.push(".cocotterc.toml");
-        let mut settings = config::Config::default();
-        match settings.merge(config::File::from(home_dir)) {
-            Ok(config) => {
-                match config.get_array("blacklist") {
-                    Ok(blacklist_config) => {
-                        blacklist_config
-                            .into_iter()
-                            .map(|v| v.into_str())
-                            .collect()
-                    },
-                    _ => Ok(vec![])
-                }
-            },
-            _ => Ok(vec![])
-        }.ok().unwrap_or(vec![])
+fn read_settings(config_path: PathBuf) -> Vec<String> {
+    let mut settings = config::Config::default();
+    match settings.merge(config::File::from(config_path)) {
+        Ok(config) => match config.get_array("blacklist") {
+            Ok(blacklist_config) => blacklist_config.into_iter().map(|v| v.into_str()).collect(),
+            _ => Ok(vec![]),
+        },
+        _ => Ok(vec![]),
+    }.ok()
+        .unwrap_or(vec![])
+}
+
+fn hsv(path: &str, black_list: &Vec<String>, dry_run: bool) {
+    let ascii_path = path.to_ascii_lowercase();
+    let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
+
+    let components: Vec<&str> = ascii_path
+        .split('/')
+        .filter(|it| it.len() > 0 && !str_black_list.contains(it))
+        .collect();
+    let mut hue: f32 = 0.0;
+    let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
+    //println!("{:?}", components);
+
+    for (ix, comp) in components.into_iter().enumerate() {
+        match ix {
+            0 => {
+                hue = base_hue_for(comp);
+            }
+            _ => {
+                let sh = sub_hue_for(comp);
+                let delta = sh / (ix as i32) as f32;
+                hue = hue + delta;
+            }
+        }
+    }
+    // Hue - 180 to 180
+    let col = Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5);
+    let rgbc: Rgb = Rgb::from_hsl(col);
+    let r = (rgbc.red * 255.0) as i32;
+    let g = (rgbc.green * 255.0) as i32;
+    let b = (rgbc.blue * 255.0) as i32;
+
+    if dry_run {
+        println!("R:{} G:{} B:{}", r, g, b);
     } else {
-        vec![]
+        print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
+        print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
+        print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
     }
 }
 
+fn sub_hue_for(component: &str) -> f32 {
+    let min: i32 = 97;
+    let max: i32 = 122;
+    let mid: i32 = (max + min) as i32 / 2;
+
+    let bytes = component.as_bytes();
+
+    let selector: Option<i32> = bytes
+        .into_iter()
+        .map(|c| *c as i32)
+        .filter(|char| *char > min && *char < max)
+        .next();
+
+    let mut hasher = DefaultHasher::new();
+    hasher.write(bytes);
+
+    let hv = hasher.finish() & 0xF;
+    let delta: i32 = (15 - hv) as i32;
+    let out: f32 = match selector {
+        Some(c) => c - mid + delta,
+        _ => 0,
+    } as f32;
+    return out;
+}
+
+fn base_hue_for(component: &str) -> f32 {
+    let asa = component.as_bytes();
+
+    let min: i32 = 97;
+    let max: i32 = 122;
+    let range = max - min;
+
+    let mut count = 0;
+    // 0-100
+    let mut hue: i32 = 0;
+
+    for cchar in asa[0..]
+        .into_iter()
+        .map(|c| *c as i32)
+        .filter(|char| *char >= min && *char <= max)
+    {
+        hue = hue + (cchar - min) * 2 / (count + 1) ^ 2;
+        count = count + 1;
+    }
+    if count == 0 {
+        panic!("Ouch, no count for \"{}\"", component);
+    }
+
+    let mut out: f32 = hue as f32;
+    out = 360.0 * out / (count * range) as f32;
+    return out;
+}
+
 fn main() {
-    let settings = read_settings();
-    let black_list = settings.iter().map(|it| it.as_str()).collect();
+    let matches = App::new("Cocotte, the hue setter.")
+        .version("1.0")
+        .author("Pierre BAILLET <pierre@baillet.name>")
+        .about("Colorize your iTerm tab/bg according to cwd")
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("FILE")
+                .help("Sets a custom config file. Default to ~/.cocotterc.toml")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("v")
+                .short("v")
+                .multiple(true)
+                .help("Sets the level of verbosity."),
+        )
+        .arg(
+            Arg::with_name("dry-run")
+                .short("r")
+                .help("Do not perform anything. Will debug a little."),
+        )
+        .arg(
+            Arg::with_name("INPUT")
+                .help("Sets the input string to use")
+                .required(true)
+                .index(1),
+        )
+        .get_matches();
 
-    if env::args().len() > 1 {
-        let path: String = env::args().last().unwrap();
-        hsv(path.as_str(), &black_list);
+    let config = match matches.value_of("config") {
+        Some(name) => Some(PathBuf::from(name)),
+        None => match env::home_dir() {
+            Some(mut hd) => {
+                hd.push(".cocotterc.toml");
+                Some(hd)
+            }
+            None => None,
+        },
+    };
+    let dry_run = matches.is_present("dry-run");
 
+    let verbose = match matches.occurrences_of("v") {
+        1 => {
+            println!("Some verbose info");
+            1
+        }
+        2 => {
+            println!("Tons of verbose info");
+            2
+        }
+        3 => {
+            println!("Don't be crazy");
+            3
+        }
+        _ => 0,
+    };
+
+    let black_list: Vec<String> = if let Some(path) = config {
+        if verbose > 0 {
+            println!("Reading configuration from: {:?}", path);
+        }
+        let settings = read_settings(path);
+        settings
+            .iter()
+            .map(|it| it.clone())
+            .collect::<Vec<String>>()
     } else {
+        vec![]
+    };
+    if verbose > 0 {
+        println!("Black list is: {:?}", black_list);
+    }
+
+    let source_string = matches.value_of("INPUT").unwrap();
+
+    if verbose > 0 {
+        println!("Using source string: {}", source_string);
+    }
+
+    hsv(source_string, &black_list, dry_run);
+
+    if false {
         let sample = vec![
             "aaaa",
             "aaaazzzz",
@@ -149,94 +311,7 @@ fn main() {
         ];
 
         for v in sample {
-            hsv(v, &black_list);
+            hsv(v, &black_list, dry_run);
         }
     }
-}
-
-
-fn hsv(path: &str, black_list: &Vec<&str>) {
-    let ascii_path = path.to_ascii_lowercase();
-    let components: Vec<&str> = ascii_path
-        .split('/')
-        .filter(|it| it.len() > 0 && !black_list.contains(it))
-        .collect();
-    let mut hue: f32 = 0.0;
-    let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
-    //println!("{:?}", components);
-
-    for (ix, comp) in components.into_iter().enumerate() {
-        match ix {
-            0 => {
-                hue = base_hue_for(comp);
-            }
-            _ => {
-                let sh = sub_hue_for(comp);
-                let delta = sh / (ix as i32) as f32;
-                hue = hue + delta;
-            }
-        }
-    }
-    // Hue - 180 to 180
-    let col = Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5);
-    let rgbc: Rgb = Rgb::from_hsl(col);
-    let r = (rgbc.red * 255.0) as i32;
-    let g = (rgbc.green * 255.0) as i32;
-    let b = (rgbc.blue * 255.0) as i32;
-
-    print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
-    print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
-    print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
-}
-
-fn sub_hue_for(component: &str) -> f32 {
-    let min: i32 = 97;
-    let max: i32 = 122;
-    let mid: i32 = (max + min) as i32 / 2;
-
-    let bytes = component.as_bytes();
-
-    let selector: Option<i32> = bytes
-        .into_iter()
-        .map(|c| *c as i32)
-        .filter(|char| *char > min && *char < max)
-        .next();
-
-    let mut hasher = DefaultHasher::new();
-    hasher.write(bytes);
-
-    let hv = hasher.finish() & 0xF;
-    let delta: i32 = (15 - hv) as i32;
-    let out: f32 = match selector {
-        Some(c) => c - mid + delta,
-        _ => 0,
-    } as f32;
-    return out;
-}
-
-fn base_hue_for(component: &str) -> f32 {
-    let asa = component.as_bytes();
-
-    let min: i32 = 97;
-    let max: i32 = 122;
-    let range = max - min;
-
-    let mut count = 0;
-    // 0-100
-    let mut hue: i32 = 0;
-
-    for cchar in asa[0..].into_iter().map(|c| *c as i32).filter(|char| {
-        *char >= min && *char <= max
-    })
-    {
-        hue = hue + (cchar - min) * 2 / (count + 1) ^ 2;
-        count = count + 1;
-    }
-    if count == 0 {
-        panic!("Ouch, no count for \"{}\"", component);
-    }
-
-    let mut out: f32 = hue as f32;
-    out = 360.0 * out / (count * range) as f32;
-    return out;
 }

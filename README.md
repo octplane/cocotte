@@ -1,3 +1,5 @@
+# Cocotte
+
 Cocotte will colorize your iTerm tabs according to the parameter you pass. It is meant to work with your folder, giving a large hue range while being stable and more or less following the alphabetical order.
 
 This is a working POC for now. So code is ugly and features suck.
@@ -5,7 +7,7 @@ This is a working POC for now. So code is ugly and features suck.
 # Building
 
 ```shell
-cargo buld --release
+cargo build --release
 ```
 
 # Configuration
