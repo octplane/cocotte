@@ -8,6 +8,29 @@ This is a working POC for now. So code is ugly and features suck.
 cargo buld --release
 ```
 
+# Configuration
+
+- create a `.cocotterc.toml` in your home
+
+Example:
+```toml
+blacklist = [
+          "users",
+          "pierrebaillet",
+          ".",
+          "Documents",
+          "src",
+          "datadog",
+          "mine"
+]
+```
+
+## Configuration keys
+
+### blacklist
+
+- String list of path segment that will be ignored by the coloring algorithm
+
 # Running
 
 ```shell
