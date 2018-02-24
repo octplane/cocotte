@@ -36,6 +36,10 @@ blacklist = [
 # Running
 
 ```shell
+cocotte --help
+```
+
+```
 cocotte $(pwd)
 ```
 
