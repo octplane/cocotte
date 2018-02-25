@@ -2,7 +2,11 @@
 
 Cocotte will colorize your iTerm tabs according to the parameter you pass. It is meant to work with your folder, giving a large hue range while being stable and more or less following the alphabetical order.
 
-This is a working POC for now. So code is ugly and features suck.
+```shell
+cocotte $(pwd)
+# takes the path, do some computation and color your iterm tab according to this value.
+```
+
 
 # Building
 
@@ -27,11 +31,23 @@ blacklist = [
 ]
 ```
 
+- if a parameter is only containing `blacklist` items, cocotte will return black as color:
+
+```shell
+cocotte -v -r /Users/pierrebaillet/src/github.com
+Verbose enabled.
+Reading configuration from: "/Users/pierrebaillet/.cocotterc.toml"
+Black list is: ["users", "pierrebaillet", ".", "Documents", "src", "datadog", "mine", "github.com", "go"]
+Using input string: /users/pierrebaillet/src/github.com
+Path components after filtering: []
+R:0 G:0 B:0
+```
+
 ## Configuration keys
 
 ### blacklist
 
-- String list of path segment that will be ignored by the coloring algorithm
+- String list of path segments that will be ignored by the coloring algorithm
 
 # Running
 
@@ -41,6 +57,21 @@ cocotte --help
 
 ```
 cocotte $(pwd)
+```
+
+# Troubleshooting
+
+```shell
+cocotte -v -d /users/pierrebaillet/src/github.com/mysuperepo
+```
+
+```shell
+Verbose enabled.
+Reading configuration from: "/Users/pierrebaillet/.cocotterc.toml"
+Black list is: ["users", "pierrebaillet", ".", "Documents", "src", "datadog", "mine", "github.com", "go"]
+Using input string: /users/pierrebaillet/src/github.com/mysuperepo
+Path components after filtering: ["mysuperepo"]
+R:0 G:254 B:164
 ```
 
 # Fish integration

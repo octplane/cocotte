@@ -13,19 +13,33 @@ use palette::{Hsl, RgbHue};
 use palette::rgb::Rgb;
 use palette::FromColor;
 
-fn read_settings(config_path: PathBuf) -> Vec<String> {
+fn read_settings(config_path: PathBuf, verbose: u16) -> Option<config::Config> {
     let mut settings = config::Config::default();
     match settings.merge(config::File::from(config_path)) {
-        Ok(config) => match config.get_array("blacklist") {
-            Ok(blacklist_config) => blacklist_config.into_iter().map(|v| v.into_str()).collect(),
-            _ => Ok(vec![]),
-        },
-        _ => Ok(vec![]),
-    }.ok()
-        .unwrap_or(vec![])
+        Ok(config) => Some(config.clone()),
+        Err(e) => {
+            if verbose > 0 {
+                println!("Error while reading the configuration: {}", e);
+            }
+            None
+        }
+    }
 }
 
-fn hsv(path: &str, black_list: &Vec<String>, dry_run: bool) {
+fn black_list(config: Option<config::Config>) -> Vec<String> {
+    if let Some(config) = config {
+        if let Ok(blacklist_config) = config.get_array("blacklist") {
+            let bl: Result<Vec<String>, _> =
+                blacklist_config.into_iter().map(|v| v.into_str()).collect();
+            if let Ok(black_list) = bl {
+                return black_list;
+            }
+        }
+    }
+    return vec![];
+}
+
+fn hsv(path: &str, black_list: &Vec<String>, verbose: u16) -> (u32, u32, u32) {
     let ascii_path = path.to_ascii_lowercase();
     let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
 
@@ -33,35 +47,37 @@ fn hsv(path: &str, black_list: &Vec<String>, dry_run: bool) {
         .split('/')
         .filter(|it| it.len() > 0 && !str_black_list.contains(it))
         .collect();
-    let mut hue: f32 = 0.0;
-    let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
-    //println!("{:?}", components);
-
-    for (ix, comp) in components.into_iter().enumerate() {
-        match ix {
-            0 => {
-                hue = base_hue_for(comp);
-            }
-            _ => {
-                let sh = sub_hue_for(comp);
-                let delta = sh / (ix as i32) as f32;
-                hue = hue + delta;
-            }
-        }
+    if verbose > 0 {
+        println!("Path components after filtering: {:?}", components);
     }
-    // Hue - 180 to 180
-    let col = Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5);
-    let rgbc: Rgb = Rgb::from_hsl(col);
-    let r = (rgbc.red * 255.0) as i32;
-    let g = (rgbc.green * 255.0) as i32;
-    let b = (rgbc.blue * 255.0) as i32;
 
-    if dry_run {
-        println!("R:{} G:{} B:{}", r, g, b);
-    } else {
-        print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
-        print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
-        print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
+    match components.len() {
+        0 => (0, 0, 0),
+        _ => {
+            let mut hue: f32 = 0.0;
+            let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
+            //println!("{:?}", components);
+
+            for (ix, comp) in components.into_iter().enumerate() {
+                match ix {
+                    0 => {
+                        hue = base_hue_for(comp);
+                    }
+                    _ => {
+                        let sh = sub_hue_for(comp);
+                        let delta = sh / (ix as i32) as f32;
+                        hue = hue + delta;
+                    }
+                }
+            }
+            // Hue - 180 to 180
+            let col = Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5);
+            let rgbc: Rgb = Rgb::from_hsl(col);
+            let r = (rgbc.red * 255.0) as u32;
+            let g = (rgbc.green * 255.0) as u32;
+            let b = (rgbc.blue * 255.0) as u32;
+            (r, g, b)
+        }
     }
 }
 
@@ -150,7 +166,7 @@ fn main() {
         )
         .get_matches();
 
-    let config = match matches.value_of("config") {
+    let config_path = match matches.value_of("config") {
         Some(name) => Some(PathBuf::from(name)),
         None => match env::home_dir() {
             Some(mut hd) => {
@@ -164,7 +180,7 @@ fn main() {
 
     let verbose = match matches.occurrences_of("v") {
         1 => {
-            println!("Some verbose info");
+            println!("Verbose enabled.");
             1
         }
         2 => {
@@ -178,18 +194,17 @@ fn main() {
         _ => 0,
     };
 
-    let black_list: Vec<String> = if let Some(path) = config {
+    let config: Option<config::Config> = if let Some(path) = config_path {
         if verbose > 0 {
             println!("Reading configuration from: {:?}", path);
         }
-        let settings = read_settings(path);
-        settings
-            .iter()
-            .map(|it| it.clone())
-            .collect::<Vec<String>>()
+        read_settings(path, verbose)
     } else {
-        vec![]
+        None
     };
+
+    let black_list = black_list(config);
+
     if verbose > 0 {
         println!("Black list is: {:?}", black_list);
     }
@@ -197,10 +212,20 @@ fn main() {
     let source_string = matches.value_of("INPUT").unwrap();
 
     if verbose > 0 {
-        println!("Using source string: {}", source_string);
+        println!("Using input string: {}", source_string);
     }
 
-    hsv(source_string, &black_list, dry_run);
+    let (r, g, b) = hsv(source_string, &black_list, verbose);
+
+    if dry_run {
+        println!("R:{} G:{} B:{}", r, g, b);
+        println!("Hex: {:02X}{:02X}{:02X}", r, g, b);
+    } else {
+        // print!("\x1b]1337;SetColors=bg={:02X}{:02X}{:02X}\x07", r, g, b);
+        print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
+        print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
+        print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
+    }
 
     if false {
         let sample = vec![
@@ -311,7 +336,7 @@ fn main() {
         ];
 
         for v in sample {
-            hsv(v, &black_list, dry_run);
+            hsv(v, &black_list, verbose);
         }
     }
 }
