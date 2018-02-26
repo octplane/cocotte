@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use clap::{App, Arg};
 
-use palette::{Hsl, RgbHue};
+use palette::{Hsl, RgbHue, Shade};
 use palette::rgb::Rgb;
 use palette::FromColor;
 
@@ -33,9 +33,10 @@ struct HueApplier {
 
 fn hsl_to_rgb(hue: Hsl) -> (u32, u32, u32) {
     let rgbc: Rgb = Rgb::from_hsl(hue);
-    let r = (rgbc.red * 255.0) as u32;
-    let g = (rgbc.green * 255.0) as u32;
-    let b = (rgbc.blue * 255.0) as u32;
+    println!("{} {} {}", rgbc.red, rgbc.green, rgbc.blue);
+    let r = (rgbc.red.max(0.0) * 255.0) as u32;
+    let g = (rgbc.green.max(0.0) * 255.0) as u32;
+    let b = (rgbc.blue.max(0.0) * 255.0) as u32;
     (r, g, b)
 }
 
@@ -58,7 +59,11 @@ struct ItermTermColorer {}
 
 impl ApplyHue for ItermTermColorer {
     fn apply(&self, hue: Hsl, verbose: u16) {
-        let (r, g, b) = hsl_to_rgb(hue);
+        let my_hue = hue.darken(0.4);
+        let (r, g, b) = hsl_to_rgb(my_hue);
+        if verbose > 0 {
+            println!("R:{}, G:{}, B:{}", r, g, b);
+        }
         print!("\x1b]1337;SetColors=bg={:02X}{:02X}{:02X}\x07", r, g, b);
     }
 }
