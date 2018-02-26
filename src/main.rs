@@ -26,6 +26,83 @@ fn read_settings(config_path: PathBuf, verbose: u16) -> Option<config::Config> {
     }
 }
 
+struct HueApplier {
+    name: String,
+    configuration_flag: String,
+}
+
+fn hsl_to_rgb(hue: Hsl) -> (u32, u32, u32) {
+    let rgbc: Rgb = Rgb::from_hsl(hue);
+    let r = (rgbc.red * 255.0) as u32;
+    let g = (rgbc.green * 255.0) as u32;
+    let b = (rgbc.blue * 255.0) as u32;
+    (r, g, b)
+}
+
+trait ApplyHue {
+    fn apply(&self, hue: Hsl, verbose: u16) {}
+}
+
+struct ItermTabColorer {}
+
+impl ApplyHue for ItermTabColorer {
+    fn apply(&self, hue: Hsl, verbose: u16) {
+        let (r, g, b) = hsl_to_rgb(hue);
+        print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
+        print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
+        print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
+    }
+}
+
+struct ItermTermColorer {}
+
+impl ApplyHue for ItermTermColorer {
+    fn apply(&self, hue: Hsl, verbose: u16) {
+        let (r, g, b) = hsl_to_rgb(hue);
+        print!("\x1b]1337;SetColors=bg={:02X}{:02X}{:02X}\x07", r, g, b);
+    }
+}
+
+struct HtmlDebugOutputer {}
+
+impl ApplyHue for HtmlDebugOutputer {
+    fn apply(&self, hue: Hsl, verbose: u16) {
+        let (r, g, b) = hsl_to_rgb(hue);
+        println!("Hex: {:02X}{:02X}{:02X}", r, g, b);
+    }
+}
+
+static FORMAT_ITERM_BG: &str = "iterm_bg";
+static FORMAT_ITERM_TAB: &str = "iterm_tab";
+static FORMAT_HTML: &str = "html";
+
+fn get_applier<'a>(format: Option<&str>) -> &'a ApplyHue {
+    match format {
+        Some(t) => match t {
+            "iterm_bg" => &ItermTermColorer {},
+            "iterm_tab" => &ItermTabColorer {},
+            _ => &HtmlDebugOutputer {},
+        },
+        None => &HtmlDebugOutputer {},
+    }
+}
+
+// fn apply_mode(config: Option<config::Config>) -> ApplyModes {
+//     if let Some(config) = config {
+//         let default = ApplyModes::HTMLOutput;
+//         return match config.get_str("apply_node") {
+//             Ok(s) => match s.as_ref() {
+//                 FORMAT_ITERM_BG => ApplyModes::ITermBGColor,
+//                 FORMAT_ITERM_TAB => ApplyModes::ITermTabColor,
+//                 FORMAT_HTML => ApplyModes::HTMLOutput,
+//                 _ => default,
+//             },
+//             _ => default,
+//         };
+//     }
+//     return ApplyModes::HTMLOutput;
+// }
+
 fn black_list(config: Option<config::Config>) -> Vec<String> {
     if let Some(config) = config {
         if let Ok(blacklist_config) = config.get_array("blacklist") {
@@ -39,7 +116,7 @@ fn black_list(config: Option<config::Config>) -> Vec<String> {
     return vec![];
 }
 
-fn hsv(path: &str, black_list: &Vec<String>, verbose: u16) -> (u32, u32, u32) {
+fn hsv(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
     let ascii_path = path.to_ascii_lowercase();
     let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
 
@@ -52,7 +129,7 @@ fn hsv(path: &str, black_list: &Vec<String>, verbose: u16) -> (u32, u32, u32) {
     }
 
     match components.len() {
-        0 => (0, 0, 0),
+        0 => Hsl::new(RgbHue::from(0.0), 0.0, 0.0),
         _ => {
             let mut hue: f32 = 0.0;
             let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
@@ -71,12 +148,7 @@ fn hsv(path: &str, black_list: &Vec<String>, verbose: u16) -> (u32, u32, u32) {
                 }
             }
             // Hue - 180 to 180
-            let col = Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5);
-            let rgbc: Rgb = Rgb::from_hsl(col);
-            let r = (rgbc.red * 255.0) as u32;
-            let g = (rgbc.green * 255.0) as u32;
-            let b = (rgbc.blue * 255.0) as u32;
-            (r, g, b)
+            Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5)
         }
     }
 }
@@ -159,6 +231,14 @@ fn main() {
                 .help("Do not perform anything. Will debug a little."),
         )
         .arg(
+            Arg::with_name("format")
+                .short("f")
+                .takes_value(true)
+                .possible_values(&[FORMAT_HTML, FORMAT_ITERM_BG, FORMAT_ITERM_TAB])
+                .default_value(FORMAT_ITERM_TAB)
+                .help("Output format."),
+        )
+        .arg(
             Arg::with_name("INPUT")
                 .help("Sets the input string to use")
                 .required(true)
@@ -194,6 +274,8 @@ fn main() {
         _ => 0,
     };
 
+    let applier = get_applier(matches.value_of("format"));
+
     let config: Option<config::Config> = if let Some(path) = config_path {
         if verbose > 0 {
             println!("Reading configuration from: {:?}", path);
@@ -215,128 +297,6 @@ fn main() {
         println!("Using input string: {}", source_string);
     }
 
-    let (r, g, b) = hsv(source_string, &black_list, verbose);
-
-    if dry_run {
-        println!("R:{} G:{} B:{}", r, g, b);
-        println!("Hex: {:02X}{:02X}{:02X}", r, g, b);
-    } else {
-        // print!("\x1b]1337;SetColors=bg={:02X}{:02X}{:02X}\x07", r, g, b);
-        print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
-        print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
-        print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
-    }
-
-    if false {
-        let sample = vec![
-            "aaaa",
-            "aaaazzzz",
-            "zzzzzzzz",
-            "zzzzaaaa",
-            "./rexif",
-            "./rexif/target",
-            "./rexif/.git",
-            "./rexif/src",
-            "./uu.js",
-            "./uu.js/app",
-            "./uu.js/config",
-            "./uu.js/bower_components",
-            "./uu.js/node_modules",
-            "./uu.js/compiled",
-            "./uu.js/public",
-            "./uu.js/.git",
-            "./imgui-rs",
-            "./imgui-rs/imgui-glium-renderer",
-            "./imgui-rs/target",
-            "./imgui-rs/imgui-sys",
-            "./imgui-rs/imgui-examples",
-            "./imgui-rs/.git",
-            "./imgui-rs/imgui-gfx-renderer",
-            "./imgui-rs/src",
-            "./rust-reverse-geocoder",
-            "./rust-reverse-geocoder/target",
-            "./rust-reverse-geocoder/.git",
-            "./rust-reverse-geocoder/src",
-            "./fsevent-rust",
-            "./fsevent-rust/target",
-            "./fsevent-rust/fsevent-sys",
-            "./fsevent-rust/tests",
-            "./fsevent-rust/examples",
-            "./fsevent-rust/.git",
-            "./fsevent-rust/src",
-            "./TrLaFr",
-            "./TrLaFr/digd",
-            "./TrLaFr/databases",
-            "./TrLaFr/docker",
-            "./TrLaFr/importer",
-            "./TrLaFr/importer-ng",
-            "./TrLaFr/viewer-ng",
-            "./TrLaFr/server-ng",
-            "./TrLaFr/server",
-            "./TrLaFr/gce",
-            "./TrLaFr/t_index",
-            "./TrLaFr/database-loader",
-            "./TrLaFr/.git",
-            "./TrLaFr/.vscode",
-            "./TrLaFr/tantivy_server",
-            "./TrLaFr/items-test",
-            "./ansible_stdout_compact_logger",
-            "./ansible_stdout_compact_logger/callbacks",
-            "./ansible_stdout_compact_logger/test-files",
-            "./ansible_stdout_compact_logger/.git",
-            "./docker-rust",
-            "./docker-rust/.git",
-            "./cocotte",
-            "./cocotte/target",
-            "./cocotte/.git",
-            "./cocotte/src",
-            "./pitocools.rs",
-            "./pitocools.rs/target",
-            "./pitocools.rs/.git",
-            "./pitocools.rs/src",
-            "./photo-map",
-            "./photo-map/app",
-            "./photo-map/target",
-            "./photo-map/.git",
-            "./photo-map/src",
-            "./arduino-code",
-            "./arduino-code/arduino-mk",
-            "./arduino-code/bin",
-            "./arduino-code/examples",
-            "./arduino-code/.git",
-            "./tlfi-data",
-            "./tlfi-data/imgs",
-            "./tlfi-data/items",
-            "./tlfi-data/assets",
-            "./reese_tag_sync",
-            "./Telebot",
-            "./Telebot/node_modules",
-            "./Telebot/.git",
-            "./mon-mail-pro",
-            "./mon-mail-pro/static-site",
-            "./mon-mail-pro/frontend",
-            "./mon-mail-pro/backend-rails",
-            "./dockerfiles",
-            "./dockerfiles/rails_app",
-            "./dockerfiles/basebox",
-            "./dockerfiles/trusty_ssh",
-            "./dockerfiles/.git",
-            "./dockerfiles/rbenv",
-            "./gists",
-            "./gists/d1a64f2724e9c74407b6de37f745f4e9",
-            "./tlfi-scraper",
-            "./tlfi-scraper/tlfi",
-            "./tlfi-scraper/.scrapy",
-            "./tlfi-scraper/bigs_ones",
-            "./tlfi-scraper/.git",
-            "./pitocools",
-            "./pitocools/.git",
-            "./pitocools/pitocools",
-            "./pitocools/src",
-        ];
-
-        for v in sample {
-            hsv(v, &black_list, verbose);
-        }
-    }
+    let hsv = hsv(source_string, &black_list, verbose);
+    applier.apply(hsv, verbose);
 }
