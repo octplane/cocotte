@@ -73,8 +73,8 @@ impl ApplyHue for HtmlDebugOutputer {
     fn apply(&self, source: &str, hue: Hsl, verbose: u16) {
         let (r, g, b) = hsl_to_rgb(hue);
         println!(
-            "<div style='background-color: #{:02X}{:02X}{:02X};'>{} {} {} {:?} {}</div>",
-            r, g, b, r, g, b, hue.hue, source
+            "<div style='background-color: #{:02X}{:02X}{:02X};'>{} {} {} {}</div>",
+            r, g, b, source
         );
     }
 }
@@ -145,7 +145,10 @@ fn hsl(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
             for (ix, comp) in components.into_iter().enumerate() {
                 match ix {
                     0 => {
-                        hue = base_hue_for(comp);
+                        hue = base_hue_for(comp, verbose);
+                        if verbose > 0 {
+                            println!("Base hue for {} is {}", comp, hue);
+                        }
                     }
                     _ => {
                         let sh = sub_hue_for(comp);
@@ -185,12 +188,12 @@ fn sub_hue_for(component: &str) -> f32 {
     return out;
 }
 
-fn base_hue_for(component: &str) -> f32 {
+fn base_hue_for(component: &str, verbose: u16) -> f32 {
     let asa = component.as_bytes();
 
     let min: i32 = 97;
     let max: i32 = 122;
-    let range = max - min;
+    let range = max - min + 1;
 
     let mut count = 0;
     let mut hue: i32 = 0;
@@ -200,17 +203,31 @@ fn base_hue_for(component: &str) -> f32 {
         .map(|c| *c as i32)
         .filter(|char| *char >= min && *char <= max)
     {
-        let char_pos = (current_char - min);
+        let char_pos = current_char - min;
+        let delta = 360 * char_pos / range;
+        let factor = 1 + count * count;
+        if factor > range {
+            break;
+        }
+        if verbose > 1 {
+            println!(
+                "Delta is {} for {}, factor {}: {}, {}",
+                delta,
+                current_char,
+                factor,
+                count,
+                count * count
+            );
+        }
 
-        hue = hue + 360 * char_pos / range / (1 - 3 * count);
+        hue = hue + delta / factor;
         count = count + 1;
     }
     if count == 0 {
         panic!("Ouch, no count for \"{}\"", component);
     }
 
-    let mut out: f32 = hue as f32;
-    out
+    hue as f32
 }
 
 fn get_config_path(path: &str) -> Option<PathBuf> {
