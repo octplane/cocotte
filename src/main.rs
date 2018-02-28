@@ -26,14 +26,9 @@ fn read_settings(config_path: PathBuf, verbose: u16) -> Option<config::Config> {
     }
 }
 
-struct HueApplier {
-    name: String,
-    configuration_flag: String,
-}
-
 fn hsl_to_rgb(hue: Hsl) -> (u32, u32, u32) {
     let rgbc: Rgb = Rgb::from_hsl(hue);
-    println!("{} {} {}", rgbc.red, rgbc.green, rgbc.blue);
+    // this should be >= 0.0
     let r = (rgbc.red.max(0.0) * 255.0) as u32;
     let g = (rgbc.green.max(0.0) * 255.0) as u32;
     let b = (rgbc.blue.max(0.0) * 255.0) as u32;
@@ -41,13 +36,13 @@ fn hsl_to_rgb(hue: Hsl) -> (u32, u32, u32) {
 }
 
 trait ApplyHue {
-    fn apply(&self, hue: Hsl, verbose: u16) {}
+    fn apply(&self, source: &str, hue: Hsl, verbose: u16) {}
 }
 
 struct ItermTabColorer {}
 
 impl ApplyHue for ItermTabColorer {
-    fn apply(&self, hue: Hsl, verbose: u16) {
+    fn apply(&self, _: &str, hue: Hsl, verbose: u16) {
         let (r, g, b) = hsl_to_rgb(hue);
         print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
         print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
@@ -58,7 +53,7 @@ impl ApplyHue for ItermTabColorer {
 struct ItermTermColorer {}
 
 impl ApplyHue for ItermTermColorer {
-    fn apply(&self, hue: Hsl, verbose: u16) {
+    fn apply(&self, _: &str, hue: Hsl, verbose: u16) {
         let my_hue = hue.darken(0.4);
         let (r, g, b) = hsl_to_rgb(my_hue);
         if verbose > 0 {
@@ -71,9 +66,12 @@ impl ApplyHue for ItermTermColorer {
 struct HtmlDebugOutputer {}
 
 impl ApplyHue for HtmlDebugOutputer {
-    fn apply(&self, hue: Hsl, verbose: u16) {
+    fn apply(&self, source: &str, hue: Hsl, verbose: u16) {
         let (r, g, b) = hsl_to_rgb(hue);
-        println!("Hex: {:02X}{:02X}{:02X}", r, g, b);
+        println!(
+            "<div style='background-color: #{:02X}{:02X}{:02X};'>{} {} {} {:?} {}</div>",
+            r, g, b, r, g, b, hue.hue, source
+        );
     }
 }
 
@@ -121,7 +119,7 @@ fn black_list(config: Option<config::Config>) -> Vec<String> {
     return vec![];
 }
 
-fn hsv(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
+fn hsl(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
     let ascii_path = path.to_ascii_lowercase();
     let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
 
@@ -191,15 +189,16 @@ fn base_hue_for(component: &str) -> f32 {
     let range = max - min;
 
     let mut count = 0;
-    // 0-100
     let mut hue: i32 = 0;
 
-    for cchar in asa[0..]
+    for current_char in asa[0..]
         .into_iter()
         .map(|c| *c as i32)
         .filter(|char| *char >= min && *char <= max)
     {
-        hue = hue + (cchar - min) * 2 / (count + 1) ^ 2;
+        let char_pos = (current_char - min);
+
+        hue = hue + 360 * char_pos / range / (1 - 3 * count);
         count = count + 1;
     }
     if count == 0 {
@@ -207,8 +206,7 @@ fn base_hue_for(component: &str) -> f32 {
     }
 
     let mut out: f32 = hue as f32;
-    out = 360.0 * out / (count * range) as f32;
-    return out;
+    out
 }
 
 fn main() {
@@ -302,6 +300,6 @@ fn main() {
         println!("Using input string: {}", source_string);
     }
 
-    let hsv = hsv(source_string, &black_list, verbose);
-    applier.apply(hsv, verbose);
+    let hsl = hsl(source_string, &black_list, verbose);
+    applier.apply(source_string, hsl, verbose);
 }
