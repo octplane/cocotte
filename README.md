@@ -2,6 +2,8 @@
 
 Cocotte will colorize your iTerm tabs according to the parameter you pass. It is meant to work with your folder, giving a large hue range while being stable and more or less following the alphabetical order.
 
+![Sample cocotte output](sample.png "This is how it looks")
+
 ```shell
 cocotte $(pwd)
 # takes the path, do some computation and color your iterm tab according to this value.
