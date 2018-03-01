@@ -64,7 +64,7 @@ cocotte $(pwd)
 # Troubleshooting
 
 ```shell
-cocotte -v -d /users/pierrebaillet/src/github.com/mysuperepo
+cocotte -v -f html /users/pierrebaillet/src/github.com/mysuperepo
 ```
 
 ```shell
@@ -101,3 +101,11 @@ function fish_prompt
   end
 end
 ```
+
+# Contributors
+
+Thanks for contributing!
+
+- Clément Delafargue @divarvel
+
+
