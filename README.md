@@ -18,7 +18,7 @@ cargo build --release
 
 # Configuration
 
-- create a `.cocotterc.toml` in your home
+- create a `.cocotterc.toml` in your config home
 
 Example:
 ```toml

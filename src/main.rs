@@ -1,10 +1,12 @@
 extern crate clap;
 extern crate config;
 extern crate palette;
+extern crate xdg;
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use std::env;
+use std::error::Error;
 use std::path::PathBuf;
 
 use clap::{App, Arg};
@@ -12,6 +14,8 @@ use clap::{App, Arg};
 use palette::{Hsl, RgbHue, Shade};
 use palette::rgb::Rgb;
 use palette::FromColor;
+
+use xdg::BaseDirectories;
 
 fn read_settings(config_path: PathBuf, verbose: u16) -> Option<config::Config> {
     let mut settings = config::Config::default();
@@ -209,6 +213,13 @@ fn base_hue_for(component: &str) -> f32 {
     out
 }
 
+fn get_config_path(path: &str) -> Option<PathBuf> {
+    let base_directories = BaseDirectories::new().ok()?;
+    let clean_path = base_directories.find_config_file(path);
+    let dirty_path = env::home_dir().map(|hd| hd.join(path));
+    clean_path.or(dirty_path)
+}
+
 fn main() {
     let matches = App::new("Cocotte, the hue setter.")
         .version("1.0")
@@ -251,13 +262,7 @@ fn main() {
 
     let config_path = match matches.value_of("config") {
         Some(name) => Some(PathBuf::from(name)),
-        None => match env::home_dir() {
-            Some(mut hd) => {
-                hd.push(".cocotterc.toml");
-                Some(hd)
-            }
-            None => None,
-        },
+        None => get_config_path(".cocotterc.toml"),
     };
     let dry_run = matches.is_present("dry-run");
 
