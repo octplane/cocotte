@@ -82,7 +82,7 @@ R:0 G:254 B:164
 
 ```shell
 function ssh
-    cocotte echo $argv
+    cocotte $argv
     /usr/bin/ssh $argv
 end
 ```
