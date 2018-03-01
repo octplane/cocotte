@@ -8,3 +8,4 @@ authors = ["Pierre BAILLET <pierre.baillet@datadoghq.com>"]
 palette = "0.3.0"
 config = "0.8"
 clap = "2.30.0"
+xdg = "2.1.0"
