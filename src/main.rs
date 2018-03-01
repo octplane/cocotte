@@ -74,7 +74,7 @@ impl ApplyHue for HtmlDebugOutputer {
         let (r, g, b) = hsl_to_rgb(hue);
         println!(
             "<div style='background-color: #{:02X}{:02X}{:02X};'>{} {} {} {}</div>",
-            r, g, b, source
+            r, g, b, r, g, b, source
         );
     }
 }
@@ -205,7 +205,7 @@ fn base_hue_for(component: &str, verbose: u16) -> f32 {
     {
         let char_pos = current_char - min;
         let delta = 360 * char_pos / range;
-        let factor = 1 + count * count;
+        let factor = 1 + 5 * count * count * count;
         if factor > range {
             break;
         }
