@@ -187,8 +187,6 @@ fn position_for(chr: usize) -> usize {
         vec![97, 123], // a-z
     ];
 
-    let mut start_ix: usize = 0;
-
     let indexer: Vec<usize> = allowed_ranges.into_iter().map(
         |range| {
             iter::repeat(0).take(range[1]- range[0]).enumerate().map( |(ix, _b)|
