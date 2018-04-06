@@ -6,8 +6,9 @@ extern crate xdg;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use std::env;
-use std::error::Error;
 use std::path::PathBuf;
+use std::iter;
+
 
 use clap::{App, Arg};
 
@@ -42,6 +43,7 @@ fn hsl_to_rgb(hue: Hsl) -> (u32, u32, u32) {
 trait ApplyHue {
     fn apply(&self, source: &str, hue: Hsl, verbose: u16) {}
 }
+
 
 struct ItermTabColorer {}
 
@@ -93,22 +95,6 @@ fn get_applier<'a>(format: Option<&str>) -> &'a ApplyHue {
         None => &HtmlDebugOutputer {},
     }
 }
-
-// fn apply_mode(config: Option<config::Config>) -> ApplyModes {
-//     if let Some(config) = config {
-//         let default = ApplyModes::HTMLOutput;
-//         return match config.get_str("apply_node") {
-//             Ok(s) => match s.as_ref() {
-//                 FORMAT_ITERM_BG => ApplyModes::ITermBGColor,
-//                 FORMAT_ITERM_TAB => ApplyModes::ITermTabColor,
-//                 FORMAT_HTML => ApplyModes::HTMLOutput,
-//                 _ => default,
-//             },
-//             _ => default,
-//         };
-//     }
-//     return ApplyModes::HTMLOutput;
-// }
 
 fn black_list(config: Option<config::Config>) -> Vec<String> {
     if let Some(config) = config {
@@ -188,12 +174,38 @@ fn sub_hue_for(component: &str) -> f32 {
     return out;
 }
 
+#[test]
+fn test() {
+    assert_eq!(position_for('0' as usize), 0);
+    assert_eq!(position_for('1' as usize), 1);
+    assert_eq!(position_for('z' as usize), 35);
+}
+
+fn position_for(chr: usize) -> usize {
+    let allowed_ranges: Vec<Vec<usize>> = vec![
+        vec![48, 58], // 0 to :
+        vec![97, 123], // a-z
+    ];
+
+    let mut start_ix: usize = 0;
+
+    let indexer: Vec<usize> = allowed_ranges.into_iter().map(
+        |range| {
+            iter::repeat(0).take(range[1]- range[0]).enumerate().map( |(ix, _b)|
+                range[0] + ix
+                ).collect()
+        }).flat_map(|s: Vec<usize>| s).collect();
+
+    indexer.iter().position(|&x| x == chr).unwrap_or(0)
+}
+
 fn base_hue_for(component: &str, verbose: u16) -> f32 {
     let asa = component.as_bytes();
 
-    let min: i32 = 97;
-    let max: i32 = 122;
+    let min: i32 = 97; // this is a
+    let max: i32 = 122; // this is z
     let range = max - min + 1;
+    println!("Range is {}", range);
 
     let mut count = 0;
     let mut hue: i32 = 0;
