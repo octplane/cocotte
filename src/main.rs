@@ -113,75 +113,48 @@ fn hsl(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
     let ascii_path = path.to_ascii_lowercase();
     let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
 
-    let components: Vec<&str> = ascii_path
+    let cleaned_path: Vec<&str> = ascii_path
         .split('/')
         .filter(|it| it.len() > 0 && !str_black_list.contains(it))
         .collect();
     if verbose > 0 {
-        println!("Path components after filtering: {:?}", components);
+        println!("Path components after filtering: {:?}", cleaned_path);
     }
 
-    match components.len() {
-        0 => Hsl::new(RgbHue::from(0.0), 0.0, 0.0),
-        _ => {
-            let mut hue: f32 = 0.0;
-            let saturation = 100.0 - 100.0 * (components.len() as f32).log(8.0);
-            //println!("{:?}", components);
-
-            for (ix, comp) in components.into_iter().enumerate() {
-                match ix {
-                    0 => {
-                        hue = base_hue_for(comp, verbose);
-                        if verbose > 0 {
-                            println!("Base hue for {} is {}", comp, hue);
-                        }
-                    }
-                    _ => {
-                        let sh = sub_hue_for(comp);
-                        let delta = sh / (ix as i32) as f32;
-                        hue = hue + delta;
-                    }
-                }
-            }
-            // Hue - 180 to 180
-            Hsl::new(RgbHue::from(hue), saturation / 100.0, 0.5)
-        }
-    }
-}
-
-fn sub_hue_for(component: &str) -> f32 {
-    let min: i32 = 97;
-    let max: i32 = 122;
-    let mid: i32 = (max + min) as i32 / 2;
-
-    let bytes = component.as_bytes();
-
-    let selector: Option<i32> = bytes
-        .into_iter()
-        .map(|c| *c as i32)
-        .filter(|char| *char > min && *char < max)
-        .next();
-
-    let mut hasher = DefaultHasher::new();
-    hasher.write(bytes);
-
-    let hv = hasher.finish() & 0xF;
-    let delta: i32 = (15 - hv) as i32;
-    let out: f32 = match selector {
-        Some(c) => c - mid + delta,
-        _ => 0,
-    } as f32;
-    return out;
+    Hsl::new(RgbHue::from(hue_for(cleaned_path.concat())), 100.0, 0.5)
 }
 
 #[test]
 fn test() {
-    assert_eq!(position_for('0' as usize), 0);
-    assert_eq!(position_for('1' as usize), 1);
-    assert_eq!(position_for('z' as usize), 35);
+    assert_eq!(position_for('0' as usize), (0,36));
+    assert_eq!(position_for('1' as usize), (1,36));
+    assert_eq!(position_for('z' as usize), (35,36));
+
+    // We should do a complete turn of the hue colorspace between A and Z.
+    assert_eq!(hue_for(String::from("0")), 0.0);
+    // assert_eq!(hue_for(String::from("z")), 350);
+    assert_eq!(hue_for(String::from("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")), 360.11102);
+    assert_eq!(hue_for(String::from("zzzzzzzzzz/zzz//zzzzzzzzzzzzzzzzzzzz")), 358.94437);
 }
 
-fn position_for(chr: usize) -> usize {
+fn hue_for(str: String) -> f32 {
+    let mut hue = 0.0;
+
+    for (ix, c) in str.as_bytes().into_iter().enumerate() {
+        let uc = *c as usize;
+        let (pos, tot) = position_for(uc);
+        let factor = match ix {
+            0...9 => 36.0,
+            _ => 0.4
+        };
+
+        hue = hue + factor * (pos as f32) /(tot as f32);
+    }
+    hue
+}
+
+// Return the char positiong 
+fn position_for(chr: usize) -> (usize, usize) {
     let allowed_ranges: Vec<Vec<usize>> = vec![
         vec![48, 58], // 0 to :
         vec![97, 123], // a-z
@@ -194,50 +167,7 @@ fn position_for(chr: usize) -> usize {
                 ).collect()
         }).flat_map(|s: Vec<usize>| s).collect();
 
-    indexer.iter().position(|&x| x == chr).unwrap_or(0)
-}
-
-fn base_hue_for(component: &str, verbose: u16) -> f32 {
-    let asa = component.as_bytes();
-
-    let min: i32 = 97; // this is a
-    let max: i32 = 122; // this is z
-    let range = max - min + 1;
-    println!("Range is {}", range);
-
-    let mut count = 0;
-    let mut hue: i32 = 0;
-
-    for current_char in asa[0..]
-        .into_iter()
-        .map(|c| *c as i32)
-        .filter(|char| *char >= min && *char <= max)
-    {
-        let char_pos = current_char - min;
-        let delta = 360 * char_pos / range;
-        let factor = 1 + 5 * count * count * count;
-        if factor > range {
-            break;
-        }
-        if verbose > 1 {
-            println!(
-                "Delta is {} for {}, factor {}: {}, {}",
-                delta,
-                current_char,
-                factor,
-                count,
-                count * count
-            );
-        }
-
-        hue = hue + delta / factor;
-        count = count + 1;
-    }
-    if count == 0 {
-        panic!("Ouch, no count for \"{}\"", component);
-    }
-
-    hue as f32
+    (indexer.iter().position(|&x| x == chr).unwrap_or(0), indexer.len())
 }
 
 fn get_config_path(path: &str) -> Option<PathBuf> {
