@@ -1,6 +1,7 @@
 use config;
 use dirs;
-use palette::{Hsl, RgbHue, Shade};
+use handlebars::Handlebars;
+use palette::{Hsl, RgbHue};
 use palette::rgb::Rgb;
 use palette::FromColor;
 use std::path::PathBuf;
@@ -21,59 +22,34 @@ pub fn read_settings(config_path: PathBuf, verbose: u16) -> Option<config::Confi
     }
 }
 
-fn hsl_to_rgb(hue: Hsl) -> (u32, u32, u32) {
+fn hsl_to_rgb(hue: Hsl) -> (u8, u8, u8) {
     let rgbc: Rgb = Rgb::from_hsl(hue);
     // this should be >= 0.0
-    let r = (rgbc.red.max(0.0) * 255.0) as u32;
-    let g = (rgbc.green.max(0.0) * 255.0) as u32;
-    let b = (rgbc.blue.max(0.0) * 255.0) as u32;
+    let r = (rgbc.red.max(0.0) * 255.0) as u8;
+    let g = (rgbc.green.max(0.0) * 255.0) as u8;
+    let b = (rgbc.blue.max(0.0) * 255.0) as u8;
     (r, g, b)
 }
 
-pub trait ApplyHue {
-    fn apply(&self, source: &str, hue: Hsl, verbose: u16) {}
-}
 
 
-struct ItermTabColorer {}
 
-impl ApplyHue for ItermTabColorer {
-    fn apply(&self, _: &str, hue: Hsl, verbose: u16) {
-        let (r, g, b) = hsl_to_rgb(hue);
-        print!("\x1b]6;1;bg;red;brightness;{}\x07", r);
-        print!("\x1b]6;1;bg;green;brightness;{}\x07", g);
-        print!("\x1b]6;1;bg;blue;brightness;{}\x07", b);
+pub fn render(template: &str, source: &str, hue: Hsl, verbose: u16) {
+    let (red, green, blue) = hsl_to_rgb(hue);
+    let mut reg = Handlebars::new();
+    handlebars_helper!(hex2: |v: i64| format!("{:02X}", v));
+    reg.register_helper("hex2", Box::new(hex2));
+
+    if verbose > 0 {
+        println!("{:?}", hue);
     }
-}
 
-struct ItermTermColorer {}
-
-impl ApplyHue for ItermTermColorer {
-    fn apply(&self, _: &str, hue: Hsl, verbose: u16) {
-        let my_hue = hue.darken(0.4);
-        let (r, g, b) = hsl_to_rgb(my_hue);
-        if verbose > 0 {
-            println!("R:{}, G:{}, B:{}", r, g, b);
-        }
-        print!("\x1b]1337;SetColors=bg={:02X}{:02X}{:02X}\x07", r, g, b);
-    }
-}
-
-struct HtmlDebugOutputer {}
-
-impl ApplyHue for HtmlDebugOutputer {
-    fn apply(&self, source: &str, hue: Hsl, verbose: u16) {
-        let (r, g, b) = hsl_to_rgb(hue);
-        println!(
-            "<div style='background-color: #{:02X}{:02X}{:02X};'>{} {} {} {}</div>",
-            r,
-            g,
-            b,
-            r,
-            g,
-            b,
-            source
-        );
+    match reg.render_template(
+        template,
+        &json!({"red": red, "green": green, "blue": blue, "source": source}),
+    ) {
+        Ok(out) => print!("{}", out),
+        Err(sth) => println!("Error: {}", sth),
     }
 }
 
@@ -81,16 +57,24 @@ pub static FORMAT_ITERM_BG: &str = "iterm_bg";
 pub static FORMAT_ITERM_TAB: &str = "iterm_tab";
 pub static FORMAT_HTML: &str = "html";
 
-pub fn get_applier<'a>(format: Option<&str>) -> &'a ApplyHue {
+pub fn get_format(format: Option<&str>) -> &str {
     match format {
         Some(t) => {
             match t {
-                "iterm_bg" => &ItermTermColorer {},
-                "iterm_tab" => &ItermTabColorer {},
-                _ => &HtmlDebugOutputer {},
+                "iterm_bg" => {
+                    "\x1b]1337;SetColors=bg={{hex2 red}}{{ hex2 green}}{{ hex2 blue}}\x07"
+                }
+                "iterm_tab" => {
+                    "\x1b]6;1;bg;red;brightness;{{ red }}\x07\x1b]6;1;bg;green;brightness;{{ green }}\x07\x1b]6;1;bg;blue;brightness;{{ blue }}\x07"
+                }
+                _ => {
+                    "<div style='background-color: 0x{{hex2 red}}{{hex2 green}}{{blue}};'>{{red}} {{green}} {{blue}} {{source}}</div>\n"
+                }
             }
         }
-        None => &HtmlDebugOutputer {},
+        None => {
+            "<div style='background-color: 0x{{hex2 red}}{{hex2 green}}{{blue}};'>{{red}} {{green}} {{blue}} {{source}}</div>\n"
+        }
     }
 }
 
