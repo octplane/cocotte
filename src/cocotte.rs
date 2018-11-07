@@ -16,7 +16,7 @@ pub fn render(template: &str, source: &str, hue: Hsl, verbose: u16) {
 
     match reg.render_template(
         template,
-        &json!({"red": red, "green": green, "blue": blue, "source": source}),
+        &json!({"red": red, "green": green, "blue": blue, "hue": hue.hue.to_positive_degrees(), "source": source}),
     ) {
         Ok(out) => print!("{}", out),
         Err(sth) => println!("Error: {}", sth),
@@ -38,12 +38,12 @@ pub fn get_format(format: Option<&str>) -> &str {
                     "\x1b]6;1;bg;red;brightness;{{ red }}\x07\x1b]6;1;bg;green;brightness;{{ green }}\x07\x1b]6;1;bg;blue;brightness;{{ blue }}\x07"
                 }
                 _ => {
-                    "<div style='background-color: #{{hex2 red}}{{hex2 green}}{{hex2 blue}};'>{{red}} {{green}} {{blue}} {{source}}</div>\n"
+                    "<div style='background-color: #{{hex2 red}}{{hex2 green}}{{hex2 blue}};'>{{ hue }}, {{red}} {{green}} {{blue}} {{source}}</div>\n"
                 }
             }
         }
         None => {
-            "<div style='background-color: 0x{{hex2 red}}{{hex2 green}}{{hex2 blue}};'>{{red}} {{green}} {{blue}} {{source}}</div>\n"
+            "<div style='background-color: 0x{{hex2 red}}{{hex2 green}}{{hex2 blue}};'>{{ hue }}, {{red}} {{green}} {{blue}} {{source}}</div>\n"
         }
     }
 }
@@ -82,23 +82,18 @@ pub fn string_to_hue(source: String, verbose: bool) -> f32 {
     let ascii_source = source.to_ascii_lowercase();
     let mut hue = 0.0;
     let p = positioner();
+    let mut range = 360.0;
 
-    for (ix, c) in ascii_source.as_bytes().into_iter().enumerate() {
+    for c in ascii_source.as_bytes().into_iter() {
         let uc = *c as usize;
         let (pos, tot) = p.position(uc);
-        let local_ix = pos as f32 - (tot as f32 / 2.0);
         if verbose {
-            println!("s2h: {}/{} {}", pos, tot, local_ix);
+            println!("s2h: {}/{}", pos, tot);
         }
-        let factor = if ix < 9 {
-            36.0
-        } else {
-            0.4
-        };
-
-        hue = hue + factor * (pos as f32) / (tot as f32);
+        hue = hue + range * (pos as f32) / (tot as f32);
+        range = range / (tot as f32);
     }
-    hue.max(0.0)
+    hue.max(0.0).round()
 }
 
 pub fn hue_for(source: String) -> f32 {
@@ -143,7 +138,11 @@ impl Positioner {
 #[test]
 fn test() {
     assert_eq!(::hue_for(String::from("0")), 0.0);
-    assert_eq!(::hue_for(String::from("a")), 10.0);
+    assert_eq!(::hue_for(String::from("1")), 10.0);
+    assert_eq!(::hue_for(String::from("a")), 100.0);
+    assert_eq!(::hue_for(String::from("b")), 110.0);
+    assert_eq!(::hue_for(String::from("azzzzzzzzzzzzzzz")), 110.0);
+
 
     let p = positioner();
     assert_eq!(p.position('0' as usize), (0, 36));
