@@ -58,13 +58,9 @@ fn hsl_to_rgb(hue: Hsl) -> (u8, u8, u8) {
 }
 
 pub fn hsl(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
-    let ascii_path = path.to_ascii_lowercase();
-    let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
 
-    let cleaned_path: Vec<&str> = ascii_path
-        .split('/')
-        .filter(|it| it.len() > 0 && !str_black_list.contains(it))
-        .collect();
+    let cleaned_path = clean(path, black_list);
+
     if verbose > 0 {
         println!("Path components after filtering: {:?}", cleaned_path);
     }
@@ -72,11 +68,22 @@ pub fn hsl(path: &str, black_list: &Vec<String>, verbose: u16) -> Hsl {
     Hsl::new(RgbHue::from(hue_for(cleaned_path.concat())), 100.0, 0.5)
 }
 
-pub fn hue_for(str: String) -> f32 {
+pub fn clean<'a>(source: &'a str, black_list: &Vec<String>) -> Vec<&'a str> {
+    let str_black_list: Vec<&str> = black_list.iter().map(|i| i.as_str()).collect();
+
+    source
+        .split('/')
+        .filter(|it| it.len() > 0 && !str_black_list.contains(it))
+        .collect()
+}
+
+pub fn hue_for(source: String) -> f32 {
+
+    let ascii_source = source.to_ascii_lowercase();
     let mut hue = 0.0;
     let p = positioner();
 
-    for (ix, c) in str.as_bytes().into_iter().enumerate() {
+    for (ix, c) in ascii_source.as_bytes().into_iter().enumerate() {
         let uc = *c as usize;
         let (pos, tot) = p.position(uc);
         let factor = match ix {
@@ -90,7 +97,7 @@ pub fn hue_for(str: String) -> f32 {
 }
 
 struct Positioner {
-   index: Vec<usize>
+    index: Vec<usize>,
 }
 
 fn positioner() -> Positioner {
@@ -111,7 +118,7 @@ fn positioner() -> Positioner {
         .flat_map(|s: Vec<usize>| s)
         .collect();
 
-    Positioner{index: indexer}
+    Positioner { index: indexer }
 }
 
 impl Positioner {
@@ -130,4 +137,5 @@ fn test() {
     assert_eq!(p.position('0' as usize), (0, 36));
     assert_eq!(p.position('1' as usize), (1, 36));
     assert_eq!(p.position('z' as usize), (35, 36));
+
 }

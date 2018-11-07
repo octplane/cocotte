@@ -34,9 +34,6 @@ fn main() {
         .arg(Arg::with_name("v").short("v").multiple(true).help(
             "Sets the level of verbosity.",
         ))
-        .arg(Arg::with_name("dry-run").short("r").help(
-            "Do not perform anything. Will debug a little.",
-        ))
         .arg(
             Arg::with_name("format")
                 .short("f")
@@ -57,7 +54,6 @@ fn main() {
         Some(name) => Some(PathBuf::from(name)),
         None => get_config_path(".cocotterc.toml"),
     };
-    let dry_run = matches.is_present("dry-run");
 
     let verbose = match matches.occurrences_of("v") {
         1 => {
