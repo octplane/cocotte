@@ -154,24 +154,9 @@ pub fn get_config_path(path: &str) -> Option<PathBuf> {
     clean_path.or(dirty_path)
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test() {
-        assert_eq!(position_for('0' as usize), (0, 36));
-        assert_eq!(position_for('1' as usize), (1, 36));
-        assert_eq!(position_for('z' as usize), (35, 36));
-
-        // We should do a complete turn of the hue colorspace between A and Z.
-        assert_eq!(hue_for(String::from("0")), 0.0);
-        // assert_eq!(hue_for(String::from("z")), 350);
-        assert_eq!(
-            hue_for(String::from("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")),
-            360.11102
-        );
-        assert_eq!(
-            hue_for(String::from("zzzzzzzzzz/zzz//zzzzzzzzzzzzzzzzzzzz")),
-            358.94437
-        );
-    }
+#[test]
+fn test() {
+    assert_eq!(position_for('0' as usize), (0, 36));
+    assert_eq!(position_for('1' as usize), (1, 36));
+    assert_eq!(position_for('z' as usize), (35, 36));
 }

@@ -12,6 +12,7 @@ use std::path::PathBuf;
 
 
 mod cocotte;
+mod tests;
 use cocotte::*;
 
 fn main() {
