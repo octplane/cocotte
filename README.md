@@ -25,7 +25,7 @@ Create a `.cocotterc.toml`:
 Example:
 ```toml
 blacklist = [
-          "users",
+          "Users",
           "pierrebaillet",
           ".",
           "Documents",
@@ -34,6 +34,12 @@ blacklist = [
           "mine"
 ]
 ```
+
+#### blacklist
+
+- list of path segments to ignore when computing the colour
+- this is a list a `CASE SENSITIVE` items ([changed after v1.0](https://github.com/octplane/cocotte/commit/1fde2432863eba52b921061588fc855749981306#diff-538df12daadf52fb9eef7a20a93fd091L61))
+
 
 - if a parameter is only containing `blacklist` items, cocotte will return black as color:
 
