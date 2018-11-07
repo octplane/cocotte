@@ -18,7 +18,9 @@ cargo build --release
 
 # Configuration
 
-- create a `.cocotterc.toml` in your config home
+Create a `.cocotterc.toml`:
+- in your config home
+- or in `~/.config/` ([XDG base directory specifications](https://specifications.freedesktop.org/basedir-spec/basedir-spec-0.6.html))
 
 Example:
 ```toml

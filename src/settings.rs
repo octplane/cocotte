@@ -17,11 +17,12 @@ pub fn read_settings(config_path: PathBuf, verbose: u16) -> Option<config::Confi
     }
 }
 
-pub fn get_config_path(path: &str) -> Option<PathBuf> {
+pub fn get_config_path(config_fname: &str) -> Option<PathBuf> {
     let base_directories = BaseDirectories::new().ok()?;
-    let clean_path = base_directories.find_config_file(path);
-    let dirty_path = dirs::home_dir();
-    clean_path.or(dirty_path)
+    let xdg_config = base_directories.find_config_file(config_fname);
+    let mut config_in_home = dirs::home_dir()?;
+    config_in_home.push(config_fname);
+    xdg_config.or(Some(config_in_home))
 }
 
 
