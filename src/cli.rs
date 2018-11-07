@@ -12,8 +12,11 @@ use std::path::PathBuf;
 
 
 mod cocotte;
+mod settings;
 mod tests;
+
 use cocotte::*;
+use settings::*;
 
 fn main() {
     let matches = App::new("Cocotte, the hue setter.")
