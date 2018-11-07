@@ -124,5 +124,6 @@ PROMPT_COMMAND="cocotte_update; $PROMPT_COMMAND"
 Thanks for contributing!
 
 - Clément Delafargue @divarvel
+- Francois BAYART @frbayart
 
 
