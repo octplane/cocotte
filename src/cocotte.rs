@@ -38,7 +38,7 @@ pub fn get_format(format: Option<&str>) -> &str {
                     "\x1b]6;1;bg;red;brightness;{{ red }}\x07\x1b]6;1;bg;green;brightness;{{ green }}\x07\x1b]6;1;bg;blue;brightness;{{ blue }}\x07"
                 }
                 _ => {
-                    "<div style='background-color: 0x{{hex2 red}}{{hex2 green}}{{hex2 blue}};'>{{red}} {{green}} {{blue}} {{source}}</div>\n"
+                    "<div style='background-color: #{{hex2 red}}{{hex2 green}}{{hex2 blue}};'>{{red}} {{green}} {{blue}} {{source}}</div>\n"
                 }
             }
         }
@@ -77,8 +77,8 @@ pub fn clean<'a>(source: &'a str, black_list: &Vec<String>) -> Vec<&'a str> {
         .collect()
 }
 
-pub fn hue_for(source: String) -> f32 {
-
+pub fn string_to_hue(source: String, verbose: bool) -> f32 {
+    
     let ascii_source = source.to_ascii_lowercase();
     let mut hue = 0.0;
     let p = positioner();
@@ -86,14 +86,23 @@ pub fn hue_for(source: String) -> f32 {
     for (ix, c) in ascii_source.as_bytes().into_iter().enumerate() {
         let uc = *c as usize;
         let (pos, tot) = p.position(uc);
-        let factor = match ix {
-            0...9 => 36.0,
-            _ => 0.4,
+        let local_ix = pos as f32 - (tot as f32 / 2.0);
+        if verbose {
+            println!("s2h: {}/{} {}", pos, tot, local_ix);
+        }
+        let factor = if ix < 9 {
+            36.0
+        } else {
+            0.4
         };
 
-        hue = hue + factor * (pos as f32) / (tot as f32);
+        hue = hue + factor * (local_ix as f32) / (tot as f32);
     }
-    hue
+    hue.max(0.0)
+}
+
+pub fn hue_for(source: String) -> f32 {
+    string_to_hue(source, false)
 }
 
 struct Positioner {
@@ -133,6 +142,10 @@ impl Positioner {
 
 #[test]
 fn test() {
+    assert_eq!(::hue_for(String::from("0")), 0.0);
+    assert_eq!(::hue_for(String::from("a")), 10.0);
+
+    assert_eq!(string_to_hue(String::from("aaaaaaaaaa"), true), 0.0);
     let p = positioner();
     assert_eq!(p.position('0' as usize), (0, 36));
     assert_eq!(p.position('1' as usize), (1, 36));

@@ -19,5 +19,10 @@ mod tests {
             ::hue_for(String::from("zzzzzzzzzz/zzz//zzzzzzzzzzzzzzzzzzzz")),
             358.94437
         );
+        assert_eq!(::hue_for(String::from("cloudops")), 177.0);
+        assert_eq!(::hue_for(String::from("devops")), 135.0);
+        assert_eq!(::hue_for(String::from("go-gitlab")), 145.0);
+        assert_eq!(::hue_for(String::from("runbooks")), 187.0);
+        assert_eq!(::hue_for(String::from("ansible")), 125.0);
     }
 }
