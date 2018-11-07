@@ -96,7 +96,7 @@ pub fn string_to_hue(source: String, verbose: bool) -> f32 {
             0.4
         };
 
-        hue = hue + factor * (local_ix as f32) / (tot as f32);
+        hue = hue + factor * (pos as f32) / (tot as f32);
     }
     hue.max(0.0)
 }
@@ -145,7 +145,6 @@ fn test() {
     assert_eq!(::hue_for(String::from("0")), 0.0);
     assert_eq!(::hue_for(String::from("a")), 10.0);
 
-    assert_eq!(string_to_hue(String::from("aaaaaaaaaa"), true), 0.0);
     let p = positioner();
     assert_eq!(p.position('0' as usize), (0, 36));
     assert_eq!(p.position('1' as usize), (1, 36));
