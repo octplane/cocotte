@@ -53,12 +53,6 @@ Path components after filtering: []
 R:0 G:0 B:0
 ```
 
-## Configuration keys
-
-### blacklist
-
-- String list of path segments that will be ignored by the coloring algorithm
-
 # Running
 
 ```shell
