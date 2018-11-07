@@ -102,6 +102,21 @@ function fish_prompt
 end
 ```
 
+# Bash integration
+
+## cwd tab color
+
+To dynamically update your tab based on your current directory you use `PROMPT_COMMAND`  
+
+edit `~/.bash_profile` and add the lines below (if `cocotte` is not in your `$PATH` you need to replace it by the full path to `cocotte`)
+```shell
+cocotte_update ()
+{
+ cocotte $(pwd)
+}
+PROMPT_COMMAND="cocotte_update; $PROMPT_COMMAND"
+```
+
 # Contributors
 
 Thanks for contributing!
